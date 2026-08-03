@@ -1,26 +1,34 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/v1/dashboard/zone-data', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store'
-    });
+    const { date } = await req.json();
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch from FastAPI backend: ${response.status}`);
+    if (!date) {
+      return NextResponse.json({ error: 'Date is required' }, { status: 400 });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    // Parse the date (format is typically YYYY-MM-DD)
+    const queryDate = new Date(date);
+
+    // Query Prisma
+    const data = await prisma.zoneData.findMany({
+      where: {
+        date: queryDate
+      }
+    });
+
+    if (data.length === 0) {
+      return NextResponse.json({ currData: [] }, { status: 200 });
+    }
+
+    // Format matches existing frontend expectations exactly
+    // since the database schema was designed to match it!
+    return NextResponse.json({ currData: data }, { status: 200 });
+
   } catch (error) {
-    console.error('API proxy error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch data from Python API' }, 
-      { status: 500 }
-    );
+    console.error('Error fetching zone data:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
